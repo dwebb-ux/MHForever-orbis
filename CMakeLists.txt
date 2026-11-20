@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.28)
 project(MHForever VERSION 0.12.0 LANGUAGES C CXX)
 
 # Windows executables carry the MHForever icon (a resource file, compiled by the platform resource compiler).
@@ -20,7 +20,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(MHF_BUILD_TESTS "Build tests" ON)
 option(MHF_WITH_SDL "Build the SDL3 desktop host (window, input, audio)" ON)
 option(MHF_BUILD_LAUNCHER "Build the launcher (needs Node.js to build its UI; WebKitGTK on Linux)" ON)
-option(MHF_WARNINGS_AS_ERRORS "Treat warnings in our own code as errors" OFF)
+option(MHF_WARNINGS_AS_ERRORS "Treat warnings in our own code as errors" ON)
 option(MHF_SANITIZE "Build with AddressSanitizer and UndefinedBehaviorSanitizer (GCC/Clang)" OFF)
 set(MHF_GAMES "mhfu;mhf1" CACHE STRING "Semicolon-separated list of game modules to build")
 
@@ -69,8 +69,11 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ffmpeg.cmake)
 # The Japanese font of sceLibFont, downloaded and checked (cmake/fonts.cmake).
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/fonts.cmake)
 add_subdirectory(third_party/aemu_postoffice)
+add_subdirectory(runtime)
+add_subdirectory(tools)
 add_subdirectory(core)
 add_subdirectory(platforms/psp)
+add_subdirectory(platforms/ps4)
 foreach(game IN LISTS MHF_GAMES)
     add_subdirectory(games/${game})
 endforeach()

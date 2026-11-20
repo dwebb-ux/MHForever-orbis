@@ -35,6 +35,8 @@ add_library(mhf_psp_runtime STATIC
 )
 target_include_directories(mhf_psp_runtime PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/../gpu)
+target_compile_features(mhf_psp_runtime PUBLIC cxx_std_20)
+set_target_properties(mhf_psp_runtime PROPERTIES CXX_EXTENSIONS OFF)
 target_link_libraries(mhf_psp_runtime PUBLIC psprecomp_core mhf_psp_tools PRIVATE mhf_stb_truetype mhf_save_crypto mhf_aemu_postoffice)
 mhf_target_warnings(mhf_psp_runtime)
 # The movies: FFmpeg's H.264 decoder (cmake/ffmpeg.cmake).

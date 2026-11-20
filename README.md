@@ -1,156 +1,38 @@
-<h1 align="center">
-  <img src="assets/branding/banner.png" alt="MHForever" width="720">
-</h1>
+# MHForever PS4
 
-[![CI](https://github.com/Mango77x/MHForever/actions/workflows/ci.yml/badge.svg)](https://github.com/Mango77x/MHForever/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/Mango77x/MHForever)](https://github.com/Mango77x/MHForever/releases)
-[![License: GPL-3.0-or-later](https://img.shields.io/github/license/Mango77x/MHForever)](LICENSE)
-[![Website](https://img.shields.io/badge/website-mango77x.github.io%2FMHForever--site-f2a541)](https://mango77x.github.io/MHForever-site/)
+Native PlayStation 4 homebrew port of MHForever.
 
-**Monster Hunter Freedom Unite on PC: an unofficial native port through static recompilation.**
+MHForever PS4 extends the MHForever static recompilation
+project with support for PlayStation 4 homebrew and FPKG
+deployments.
 
-MHForever turns the PSP version of *Monster Hunter Freedom Unite* (*Monster Hunter Portable 2nd G* in Japan, MHFU) into a
-native PC program: no emulator, any controller, and a launcher that sets everything up from your own disc image.
+Goals:
 
-**Supported today: *Monster Hunter Freedom Unite* (European, North American and Japanese releases), complete, and *Monster Hunter Freedom* (European, North American and Japanese releases). More games are planned**: MHForever is
-the first step of a wider Monster Hunter recompilation project, and each game is a module of its own.
+- Native execution on PS4
+- 60 FPS gameplay
+- DualShock 4 support
+- HD rendering
+- Save compatibility with PC builds
+- Future multiplayer support
 
-> Not affiliated with, endorsed by or sponsored by Capcom or Sony. Requires your own legitimate copy of the game.
-> No game assets are included or downloaded: no disc image, textures, models, audio, text or saves. "Monster Hunter" is
-> a trademark of its owner and is used here only to describe which games the project works with.
+This project does not distribute copyrighted game data.
 
-## Website
+Users must provide their own legally obtained game assets.
 
-**https://mango77x.github.io/MHForever-site/**
+## Supported Targets
 
-The project website explains what MHForever is, shows which games are supported, and always links to the latest
-release. It is built from its own repository,
-[MHForever-site](https://github.com/Mango77x/MHForever-site). The downloads, the code and the issues live here.
+- PS4 Fat
+- PS4 Slim
+- PS4 Pro
 
-## Community
+## Supported Firmware (planned)
 
-Questions, bug reports, suggestions and release news: **https://discord.gg/6xrxY2buDf**. Bring your own copy of the game; there is
-no piracy talk there. Bugs can also be reported as [issues](https://github.com/Mango77x/MHForever/issues).
+- 9.00
+- 11.00
+- Future jailbreak-supported releases
 
-## Supported games
+## Current Status
 
-| Game | Original platform | Release | Status |
-|---|---|---|---|
-| **Monster Hunter Freedom Unite** | PSP | Europe (`ULES01213`, v1.01) | **Playable** |
-| **Monster Hunter Freedom Unite** | PSP | North America (`ULUS10391`, v1.01) | **Playable** |
-| Monster Hunter Portable 2nd G | PSP | Japan (`ULJM05500`, v1.01) | **Playable** |
-| Monster Hunter Portable 2nd G + FUComplete | PSP | Japan, patched with FUComplete v1.4.0 | **Playable** |
-| **Monster Hunter Freedom** | PSP | Europe (`ULES00318`, v1.01) | **Playable** |
-| **Monster Hunter Freedom** | PSP | North America (`ULUS10084`, v1.00) | **Playable**, new |
-| Monster Hunter Portable | PSP | Japan (`ULJM05066`, v1.03) | **Playable**, new |
-| Monster Hunter Freedom + Freedom DX | PSP | Europe, North America and Japan (original or English translation), patched with Freedom DX v1.8.6 | **Playable**, new |
-| Other Monster Hunter games | PSP, later PS2 | | Planned, see the [roadmap](docs/10-roadmap.md) |
-
-The first five rows work today (online play is experimental). The others are plans, not promises: they are listed so you know where the project is going.
-
-## Where the project is today
-
-| | |
-|---|---|
-| **Playable game** | **Monster Hunter Freedom Unite** (PSP), European (`ULES01213`, v1.01) and North American (`ULUS10391`, v1.01) releases. Each release has its own video, audio and control settings in the launcher. |
-| **Frame rate** | **30 fps** as on the original console, or **60 to 180 fps** (any multiple of 30) with frame interpolation, chosen in the game's settings in the launcher (Home → Game settings). Experimental: heavy scenes may not hold the top rates. |
-| **Online play** | **Experimental (0.6).** Quests together on the PSP ad hoc servers PPSSPP uses, with other copies of MHForever and with PPSSPP players; pick the server in the launcher under Settings → Online. Private rooms with a code and friends (added by code, who is online, invites) shipped in 0.8.0. |
-| **Platforms** | Windows (64-bit) and Linux (64-bit). The launcher needs WebKitGTK 4.1, which SteamOS (Steam Deck) does not include: there use `MHForever-cli`, the same launcher without a window (`--install`, `--set`, `--play`), which needs nothing besides the C library. The maintainers have no Deck to test on; reports are welcome. |
-| **Controllers** | Gamepads work out of the box. **Tested with a PS5 DualSense**; other pads recognized by SDL should work too. Keyboard and controller buttons are changed in Game settings (Home) or from the in-game menu. |
-| **Saves** | Kept in `Documents\MHForever\saves` on Windows and `~/.local/share/MHForever/saves` on Linux, one folder per game; settings in `%APPDATA%\MHForever` or `$XDG_DATA_HOME/MHForever`. Updating never loses them. Saves use the PSP format: import them from a PSP or PPSSPP in Game settings (your own version of the game: a European save only works with the European release, and a North American one with the North American release), or copy MHForever's into PPSSPP. |
-| **Resolution** | Up to several times the original 480x272, with an optional smoother texture filter. |
-| **HUD scale** | The hunting HUD (health and stamina, clock, minimap, item bar) can be made smaller, down to 50%, each part staying in its corner: Game settings → Video → HUD scale, or the in-game menu. Menus and the village keep their size. |
-| **HD textures** | Texture packs made for PPSSPP (a folder with a `textures.ini`, PNG or KTX2 images), such as KHD, for the European, North American and Japanese releases: choose one per copy of the game in Game settings → Texture pack. None is included: download a pack yourself. |
-| **Text font** | The game's text in HD by default. Any font of your own (`.ttf` or `.otf`) can replace it, per copy of the game: Game settings → Video → Text font. |
-| **Widescreen** | On a wide window or screen (21:9, 32:9) the 3D fills it with a wider view while the HUD and menus keep their shape, the quest HUD at the screen's edges: Game settings → Video → Widescreen, or the in-game menu. |
-| **Projected shadows** | The hunter, monsters and scenery cast shadows from the game's own light, with a quality and a darkness setting: in the in-game menu's Video tab. Optional, off by default. |
-| **Other games and regions** | The Japanese release (Portable 2nd G, `ULJM05500`) is playable too, with its Japanese text. **Monster Hunter Freedom** (European `ULES00318`, North American `ULUS10084`, and Japanese `ULJM05066` as Monster Hunter Portable) is playable with frame interpolation up to 180 fps and the HUD scale, plus the launcher's video, audio, language, controls and texture pack settings. Other games of the series are planned. |
-| **Latest release** | [![Latest release](https://img.shields.io/github/v/release/Mango77x/MHForever?label=version)](https://github.com/Mango77x/MHForever/releases/latest) [![Release date](https://img.shields.io/github/release-date/Mango77x/MHForever?label=published)](https://github.com/Mango77x/MHForever/releases/latest) See the [Releases](../../releases) page. |
-
-It is early software: according to the maintainer's testing, single player can be played from start to finish, but expect rough edges and bugs. Reports are welcome.
-
-## How it works for a player
-
-1. Download MHForever from the [Releases](../../releases) page and unzip it anywhere. On Linux the launcher needs
-   WebKitGTK 4.1 and GTK 3 (see [BUILDING.md](BUILDING.md#running-on-linux)).
-2. Open `MHForever.exe` on Windows or `MHForever` on Linux, and add **your own** `.iso` of Freedom Unite or Freedom (a plain,
-   uncompressed image of your UMD).
-3. The launcher checks your copy and prepares everything it needs from it on your PC. You can also let it keep a copy
-   of your image in its own folder.
-4. Press **Play**.
-
-The game's assets (graphics, audio, text, data) are never included in MHForever or sent anywhere: they are read from the
-image you provide.
-Your saves live in `Documents\MHForever\saves` on Windows and `~/.local/share/MHForever/saves` on Linux (one folder per game), outside the program folder, so updating never loses them. Any controller recognized by SDL should work (tested with a PS5 DualSense); there are keyboard defaults too.
-
-**Keyboard:** arrows = D-pad, WASD = analog stick, K/L/J/I = cross/circle/square/triangle, Q/E = L/R, Enter = Start,
-Backspace = Select. Change them, and the controller's buttons, in **Game settings → Controls** or from the in-game menu (Esc).
-
-## What this is
-
-MHForever is not an emulator. The game's program is **statically recompiled** into native PC code, and the console's
-system services are re-implemented. The result is a normal desktop program (Windows or Linux) that runs the game
-directly, with a modern launcher around it. That is what makes things like higher resolutions, any controller and, later, online play practical.
-
-Developed with AI assistance.
-
-## For developers and contributors
-
-Build instructions are in [BUILDING.md](BUILDING.md). Pull requests and bug reports are welcome; every change is reviewed and merged by the maintainer. See
-[CONTRIBUTING.md](CONTRIBUTING.md).
-
-| | |
-|---|---|
-| [Overview](docs/00-overview.md) | [Architecture](docs/02-architecture.md) |
-| [PSP platform](docs/03-psp-platform.md) | [Recompiler](docs/04-recompiler.md) |
-| [Runtime / HLE](docs/05-runtime-hle.md) | [Freedom Unite module](docs/06-mhfu-module.md) |
-| [Launcher, controllers, Steam Deck](docs/07-launcher-ux.md) | [Multiplayer](docs/08-multiplayer.md) |
-| [Roadmap](docs/10-roadmap.md) | |
-
-## Special thanks
-
-- **[theguyser](https://github.com/theguyser)**, author of pokke (a port of the Japanese
-  release of the same game): the PSP save-data cryptography that lets MHForever read and write saves in the PSP and PPSSPP
-  format comes from his project, shared with his permission, along with his time and advice.
-- **[sodomon2](https://github.com/sodomon2)**, for the Linux packaging, the desktop integration and the launcher fixes that
-  came with them (pull request #7), the keyboard bindings in the launcher (#9), the movies (#12) and the language choice
-  (#20).
-- **[ibonplix](https://github.com/ibonplix)**, for the first texture pack support (pull request #39): the PPSSPP quick hash, the
-  KTX2 decoding and the launcher setting that the HD textures are built on; and for the projected shadows (#90), tuned zone
-  by zone across the maps.
-- **[Pablo1517](https://github.com/Pablo1517)**, for the hunting horn songs card (pull request #49), the true weapon values
-  (#44), keeping the volumes changed in the in-game menu (#45), the fast supply box (#59), browsing the smithy with its
-  panels open (#60, with the recompiler's instruction patches) and its improved layout (#62), and the analog camera (#68,
-  with the recompiler's call patches), and for the generated region data the game's host reads the region maps through.
-- **[SilverJolteon](https://github.com/SilverJolteon/FreedomDX)**, whose Freedom DX patch for Freedom (options, event quests, fixes) MHForever
-  runs as its own copy of the game: the player patches their own European, North American or Japanese image with Freedom DX's xdelta and chooses its
-  FDXDAT folder in Game settings. Nothing of Freedom DX is included.
-- **[The FUComplete team](https://fucomplete.github.io)** ([FUComplete/Patch](https://github.com/FUComplete/Patch)), whose fan patch for the Japanese release (its English translation, events and options) MHForever
-  runs as its own copy of the game: the player patches their own image with FUComplete's tool, and the launcher sets its
-  options.
-- **Kaneda**, for the HD text MHForever ships (the game's character map at 16 times its size and every character of
-  the font, accents and Japanese included, at 8 times), and for the texture pack ideas.
-- **Mobilozor**, for proving HD texture packs on MHForever first (on SteamOS), and for the audit and
-  test logs shared with the project.
-- **[TeamGDB's Yakumo](https://github.com/TeamGDB/Yakumo)** (MIT), whose frame interpolation MHForever's is ported from, and
-  whose texture packs showed how to load them without holding the game up.
-- **[PSPRecomp](https://github.com/jessicanataliagta/PSPRecomp)**, the static recompiler framework this project is built on.
-- **[PPSSPP](https://github.com/hrydgard/ppsspp)**, for the executable decryption, the texture pack format, as the reference for how the PSP behaves, and for the
-  ad hoc online play its players keep alive: MHForever plays on the same servers, and the launcher's list of servers comes
-  from the one PPSSPP publishes.
-- **[FFmpeg](https://ffmpeg.org)**, whose libavcodec decodes the movie pictures and sound and the game's music.
-- **[Kethen](https://github.com/Kethen)**, for [aemu_postoffice](https://github.com/Kethen/aemu_postoffice), the client and the
-  protocol that PSP ad hoc servers speak, which MHForever's online play uses (GPL-3.0, included unmodified,
-  with [ENet](https://github.com/zpl-c/enet), MIT).
-- **The volunteers who run the PSP ad hoc servers** for the PPSSPP community, and in particular those MHForever lists:
-  Socom (socom.cc), Madness Gaming Network (psp.mgn.pub), Games Nexus (adhoc.gamesnexus.ovh), Psi-Hate (psi-hate.com)
-  and Neko PSP (cat.wjg.jp).
-- **[tclamb/mhp2g-decomp](https://github.com/tclamb/mhp2g-decomp)**, the matching decompilation of *Monster Hunter Portable 2nd G*,
-  whose documented formats and names helped a great deal.
-- Everyone who tested the releases and reported problems on GitHub, Reddit and Discord.
-
-The full list of third-party code and its licenses is in `THIRD_PARTY.md`.
-
-## License
-
-GPL-3.0-or-later (see `LICENSE`). Third-party components keep their own licenses (see `THIRD_PARTY.md`).
+- Platform design
+- Runtime integration
+- Graphics backend investigation

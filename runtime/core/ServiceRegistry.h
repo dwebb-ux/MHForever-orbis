@@ -1,0 +1,86 @@
+#pragma once
+
+#include <memory>
+#include <mutex>
+#include <shared_mutex>
+#include <type_traits>
+#include <typeindex>
+#include <unordered_map>
+#include <utility>
+
+namespace mhf::runtime {
+
+class ServiceRegistry {
+public:
+    ServiceRegistry() = default;
+    ServiceRegistry(const ServiceRegistry &) = delete;
+    ServiceRegistry &operator=(const ServiceRegistry &) = delete;
+    ServiceRegistry(ServiceRegistry &&) noexcept;
+    ServiceRegistry &operator=(ServiceRegistry &&) noexcept;
+
+    template <typename T>
+    bool Register() {
+        return Register(std::type_index(typeid(T)), {});
+    }
+
+    // Raw pointers are non-owning; the caller must keep them alive.
+    template <typename T>
+    bool Register(T *service) {
+        if (service == nullptr) {
+            return Register(std::type_index(typeid(T)), {});
+        }
+        return Register(std::type_index(typeid(T)),
+                        std::shared_ptr<void>(service, [](void *) noexcept {}));
+    }
+
+    template <typename T, typename U>
+    bool Register(std::unique_ptr<U> service) {
+        static_assert(std::is_base_of_v<T, U>, "Registered implementation must derive from service interface");
+        std::shared_ptr<T> owned = std::shared_ptr<U>(std::move(service));
+        return Register<T>(std::move(owned));
+    }
+
+    template <typename T>
+    bool Register(std::shared_ptr<T> service) {
+        if (!service) {
+            return Register(std::type_index(typeid(T)), {});
+        }
+        return Register(std::type_index(typeid(T)), std::shared_ptr<void>(std::move(service)));
+    }
+
+    template <typename T>
+    T *Get() noexcept {
+        std::shared_ptr<void> service;
+        {
+            std::shared_lock lock(mutex_);
+            const auto found = services_.find(std::type_index(typeid(T)));
+            if (found == services_.end()) {
+                return nullptr;
+            }
+            service = found->second;
+        }
+        return static_cast<T *>(service.get());
+    }
+
+    template <typename T>
+    [[nodiscard]] bool Contains() const noexcept {
+        std::shared_lock lock(mutex_);
+        return services_.find(std::type_index(typeid(T))) != services_.end();
+    }
+
+    template <typename T>
+    bool Unregister() {
+        std::unique_lock lock(mutex_);
+        return services_.erase(std::type_index(typeid(T))) != 0;
+    }
+
+    void Clear() noexcept;
+
+private:
+    bool Register(std::type_index type, std::shared_ptr<void> service);
+
+    mutable std::shared_mutex mutex_;
+    std::unordered_map<std::type_index, std::shared_ptr<void>> services_;
+};
+
+} // namespace mhf::runtime

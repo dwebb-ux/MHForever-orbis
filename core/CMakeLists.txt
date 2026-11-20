@@ -5,6 +5,8 @@ add_library(mhf_core STATIC
     host/padmap.cpp
 )
 target_include_directories(mhf_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_features(mhf_core PUBLIC cxx_std_20)
+set_target_properties(mhf_core PROPERTIES CXX_EXTENSIONS OFF)
 target_compile_definitions(mhf_core PRIVATE MHF_VERSION_STRING="${PROJECT_VERSION}")
 mhf_target_warnings(mhf_core)
 
@@ -13,17 +15,23 @@ add_library(mhf_net STATIC
     net/local_network.cpp
 )
 target_include_directories(mhf_net PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_features(mhf_net PUBLIC cxx_std_20)
+set_target_properties(mhf_net PROPERTIES CXX_EXTENSIONS OFF)
 mhf_target_warnings(mhf_net)
 
 # Overlays drawn over a game: text and shapes (Painter) and the in-game menu (docs/07-launcher-ux.md section 3c).
 add_library(mhf_overlay STATIC overlay/painter.cpp overlay/menu.cpp overlay/icon.cpp)
 target_include_directories(mhf_overlay PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_features(mhf_overlay PUBLIC cxx_std_20)
+set_target_properties(mhf_overlay PROPERTIES CXX_EXTENSIONS OFF)
 target_link_libraries(mhf_overlay PRIVATE mhf_stb_truetype)
 mhf_target_warnings(mhf_overlay)
 
 # The local link between the game program and the launcher (docs/07-launcher-ux.md section 3c).
 add_library(mhf_link STATIC link/link.cpp link/protocol.cpp)
 target_include_directories(mhf_link PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_features(mhf_link PUBLIC cxx_std_20)
+set_target_properties(mhf_link PROPERTIES CXX_EXTENSIONS OFF)
 if(WIN32)
     target_link_libraries(mhf_link PUBLIC ws2_32)
 endif()

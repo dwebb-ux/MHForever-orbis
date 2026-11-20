@@ -6,6 +6,8 @@ add_library(mhf_psp_tools STATIC
     tools/param_sfo.cpp
 )
 target_include_directories(mhf_psp_tools PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/tools)
+target_compile_features(mhf_psp_tools PUBLIC cxx_std_20)
+set_target_properties(mhf_psp_tools PROPERTIES CXX_EXTENSIONS OFF)
 mhf_target_warnings(mhf_psp_tools)
 
 # Function-level recompiler (docs/04-recompiler.md).
@@ -15,6 +17,8 @@ add_library(mhf_psp_recomp STATIC
     recomp/instruction_emitter.cpp
 )
 target_include_directories(mhf_psp_recomp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/recomp)
+target_compile_features(mhf_psp_recomp PUBLIC cxx_std_20)
+set_target_properties(mhf_psp_recomp PROPERTIES CXX_EXTENSIONS OFF)
 target_link_libraries(mhf_psp_recomp PUBLIC psprecomp_core)
 mhf_target_warnings(mhf_psp_recomp)
 
@@ -23,6 +27,29 @@ target_link_libraries(mhf_recomp PRIVATE mhf_psp_recomp)
 mhf_target_warnings(mhf_recomp)
 
 add_subdirectory(runtime)
+
+# Console-independent interfaces backed by existing PSP filesystem/network code and the desktop SDL host.
+add_library(mhf_psp_adapters STATIC
+    adapters/PspFileSystem.cpp
+    adapters/PspFileSystem.h
+    adapters/PspNetworkSystem.cpp
+    adapters/PspNetworkSystem.h
+)
+target_include_directories(mhf_psp_adapters PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/adapters
+)
+target_compile_features(mhf_psp_adapters PUBLIC cxx_std_20)
+set_target_properties(mhf_psp_adapters PROPERTIES CXX_EXTENSIONS OFF)
+target_link_libraries(mhf_psp_adapters PUBLIC mhf_runtime mhf_net)
+mhf_target_warnings(mhf_psp_adapters)
+
+if(MHF_WITH_SDL)
+    target_sources(mhf_psp_adapters PRIVATE
+        adapters/PspDesktopAdapters.cpp
+        adapters/PspDesktopAdapters.h
+    )
+    target_link_libraries(mhf_psp_adapters PUBLIC mhf_core_host)
+endif()
 
 # Frame interpolation's matching (frontend/frame_matching.*): pure, so the tests use it without SDL.
 add_library(mhf_psp_interpolation STATIC frontend/frame_matching.cpp)
@@ -55,6 +82,15 @@ add_library(mhf_psp INTERFACE)
 target_link_libraries(mhf_psp INTERFACE psprecomp_core mhf_core mhf_psp_tools mhf_psp_runtime)
 
 if(MHF_BUILD_TESTS)
+    add_executable(test_psp_runtime_adapters tests/test_psp_runtime_adapters.cpp)
+    target_include_directories(test_psp_runtime_adapters PRIVATE
+        ${PROJECT_SOURCE_DIR}/tests/support
+        ${CMAKE_CURRENT_SOURCE_DIR}/adapters
+    )
+    target_link_libraries(test_psp_runtime_adapters PRIVATE mhf_psp_adapters)
+    mhf_target_warnings(test_psp_runtime_adapters)
+    add_test(NAME psp_runtime_adapters COMMAND test_psp_runtime_adapters)
+
     add_executable(test_iso9660 tests/test_iso9660.cpp)
     target_include_directories(test_iso9660 PRIVATE ${PROJECT_SOURCE_DIR}/tests/support)
     target_link_libraries(test_iso9660 PRIVATE mhf_psp_tools)

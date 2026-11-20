@@ -1,6 +1,6 @@
 {
   "version": 6,
-  "cmakeMinimumRequired": { "major": 3, "minor": 20, "patch": 0 },
+  "cmakeMinimumRequired": { "major": 3, "minor": 28, "patch": 0 },
   "configurePresets": [
     {
       "name": "base",
@@ -18,6 +18,22 @@
         "CMAKE_C_COMPILER": "clang",
         "CMAKE_CXX_COMPILER": "clang++",
         "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
+    {
+      "name": "linux-clang-debug",
+      "inherits": "linux-clang",
+      "displayName": "Linux (Clang, Debug)",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "linux-clang-release",
+      "inherits": "linux-clang",
+      "displayName": "Linux (Clang, Release)",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
       }
     },
     {
@@ -50,10 +66,26 @@
         "CMAKE_CXX_COMPILER": "cl",
         "CMAKE_BUILD_TYPE": "RelWithDebInfo"
       }
+    },
+    {
+      "name": "ps4-orbis",
+      "inherits": "base",
+      "displayName": "PlayStation 4 (Orbis SDK)",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" },
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/toolchains/orbis.cmake",
+        "CMAKE_BUILD_TYPE": "Release",
+        "MHF_BUILD_PS4": "ON",
+        "MHF_BUILD_LAUNCHER": "OFF",
+        "MHF_WITH_SDL": "OFF",
+        "MHF_BUILD_TESTS": "OFF"
+      }
     }
   ],
   "buildPresets": [
-    { "name": "linux-clang", "configurePreset": "linux-clang" },
+    { "name": "linux-clang", "configurePreset": "linux-clang", "configuration": "RelWithDebInfo" },
+    { "name": "linux-clang-debug", "configurePreset": "linux-clang-debug", "configuration": "Debug" },
+    { "name": "linux-clang-release", "configurePreset": "linux-clang-release", "configuration": "Release" },
     { "name": "linux-clang-asan", "configurePreset": "linux-clang-asan" },
     { "name": "windows-clang", "configurePreset": "windows-clang" },
     { "name": "windows-msvc", "configurePreset": "windows-msvc" }
