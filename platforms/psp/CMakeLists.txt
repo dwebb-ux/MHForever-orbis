@@ -30,11 +30,13 @@ add_subdirectory(runtime)
 
 # Console-independent interfaces backed by existing PSP filesystem/network code and the desktop SDL host.
 add_library(mhf_psp_adapters STATIC
+    ${PROJECT_SOURCE_DIR}/runtime/core/RuntimeBootstrap.cpp
     adapters/PspFileSystem.cpp
     adapters/PspFileSystem.h
     adapters/PspNetworkSystem.cpp
     adapters/PspNetworkSystem.h
 )
+target_compile_definitions(mhf_psp_adapters PRIVATE MHF_RUNTIME_PLATFORM_PSP=1)
 target_include_directories(mhf_psp_adapters PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/adapters
 )
@@ -44,6 +46,7 @@ target_link_libraries(mhf_psp_adapters PUBLIC mhf_runtime mhf_net)
 mhf_target_warnings(mhf_psp_adapters)
 
 if(MHF_WITH_SDL)
+    target_compile_definitions(mhf_psp_adapters PRIVATE MHF_RUNTIME_PSP_HAS_SDL=1)
     target_sources(mhf_psp_adapters PRIVATE
         adapters/PspDesktopAdapters.cpp
         adapters/PspDesktopAdapters.h

@@ -3,6 +3,7 @@
 #include "core/ServiceRegistry.h"
 
 #include <memory>
+#include <stdexcept>
 #include <type_traits>
 
 namespace mhf::runtime {
@@ -14,11 +15,6 @@ public:
     RuntimeContext &operator=(const RuntimeContext &) = delete;
     RuntimeContext(RuntimeContext &&) noexcept = default;
     RuntimeContext &operator=(RuntimeContext &&) noexcept = default;
-
-    template <typename T>
-    bool Register() {
-        return registry_.Register<T>();
-    }
 
     template <typename T>
     bool Register(T *service) {
@@ -43,8 +39,29 @@ public:
     }
 
     template <typename T>
+    const T *Get() const noexcept {
+        return registry_.Get<T>();
+    }
+
+    template <typename T>
     [[nodiscard]] bool Contains() const noexcept {
         return registry_.Contains<T>();
+    }
+
+    template <typename T>
+    T &Require() {
+        if (T *service = Get<T>(); service != nullptr) {
+            return *service;
+        }
+        throw std::logic_error("Required runtime service is not registered");
+    }
+
+    template <typename T>
+    const T &Require() const {
+        if (const T *service = Get<T>(); service != nullptr) {
+            return *service;
+        }
+        throw std::logic_error("Required runtime service is not registered");
     }
 
     template <typename T>
@@ -53,8 +70,6 @@ public:
     }
 
     void Clear() noexcept;
-    [[nodiscard]] ServiceRegistry &Services() noexcept;
-    [[nodiscard]] const ServiceRegistry &Services() const noexcept;
 
 private:
     ServiceRegistry registry_;

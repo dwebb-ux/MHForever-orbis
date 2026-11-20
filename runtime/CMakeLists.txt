@@ -1,5 +1,4 @@
 add_library(mhf_runtime
-    core/RuntimeBootstrap.cpp
     core/RuntimeBootstrap.h
     core/RuntimeContext.cpp
     core/RuntimeContext.h
@@ -13,6 +12,8 @@ add_library(mhf_runtime
     interfaces/ILogger.h
     memory/MemoryAllocator.cpp
     memory/MemoryAllocator.h
+    memory/MemoryTracker.cpp
+    memory/MemoryTracker.h
 )
 
 target_include_directories(mhf_runtime PUBLIC

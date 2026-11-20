@@ -18,16 +18,11 @@ public:
     ServiceRegistry(ServiceRegistry &&) noexcept;
     ServiceRegistry &operator=(ServiceRegistry &&) noexcept;
 
-    template <typename T>
-    bool Register() {
-        return Register(std::type_index(typeid(T)), {});
-    }
-
     // Raw pointers are non-owning; the caller must keep them alive.
     template <typename T>
     bool Register(T *service) {
         if (service == nullptr) {
-            return Register(std::type_index(typeid(T)), {});
+            return false;
         }
         return Register(std::type_index(typeid(T)),
                         std::shared_ptr<void>(service, [](void *) noexcept {}));
@@ -43,7 +38,7 @@ public:
     template <typename T>
     bool Register(std::shared_ptr<T> service) {
         if (!service) {
-            return Register(std::type_index(typeid(T)), {});
+            return false;
         }
         return Register(std::type_index(typeid(T)), std::shared_ptr<void>(std::move(service)));
     }
@@ -60,6 +55,20 @@ public:
             service = found->second;
         }
         return static_cast<T *>(service.get());
+    }
+
+    template <typename T>
+    const T *Get() const noexcept {
+        std::shared_ptr<void> service;
+        {
+            std::shared_lock lock(mutex_);
+            const auto found = services_.find(std::type_index(typeid(T)));
+            if (found == services_.end()) {
+                return nullptr;
+            }
+            service = found->second;
+        }
+        return static_cast<const T *>(service.get());
     }
 
     template <typename T>

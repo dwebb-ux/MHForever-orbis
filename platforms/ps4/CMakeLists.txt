@@ -15,6 +15,7 @@ if(NOT DEFINED ENV{SCE_ORBIS_SDK_DIR})
 endif()
 
 add_library(mhf_platform_ps4 STATIC
+    ${PROJECT_SOURCE_DIR}/runtime/core/RuntimeBootstrap.cpp
     Ps4FileSystem.cpp
     Ps4FileSystem.h
     Ps4Input.cpp
@@ -22,6 +23,7 @@ add_library(mhf_platform_ps4 STATIC
     Ps4Logger.cpp
     Ps4Logger.h
 )
+target_compile_definitions(mhf_platform_ps4 PRIVATE MHF_RUNTIME_PLATFORM_PS4=1)
 
 target_include_directories(mhf_platform_ps4
     PUBLIC

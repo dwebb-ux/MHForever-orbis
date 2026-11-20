@@ -17,6 +17,9 @@ ServiceRegistry &ServiceRegistry::operator=(ServiceRegistry &&other) noexcept {
 }
 
 bool ServiceRegistry::Register(std::type_index type, std::shared_ptr<void> service) {
+    if (!service) {
+        return false;
+    }
     std::unique_lock lock(mutex_);
     services_[type] = std::move(service);
     return true;

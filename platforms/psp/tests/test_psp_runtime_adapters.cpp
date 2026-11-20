@@ -1,5 +1,10 @@
 #include "PspFileSystem.h"
 #include "PspNetworkSystem.h"
+#include "core/RuntimeBootstrap.h"
+#include "interfaces/IAudioSystem.h"
+#include "interfaces/IInputSystem.h"
+#include "interfaces/ILogger.h"
+#include "interfaces/IRenderer.h"
 
 #include "check.hpp"
 
@@ -9,6 +14,24 @@
 #include <string>
 
 int main() {
+    const mhf::runtime::BootstrapReport bootstrap = mhf::runtime::RuntimeBootstrap::Initialize();
+    mhf::runtime::RuntimeContext &context = mhf::runtime::RuntimeBootstrap::Context();
+    MHF_CHECK(bootstrap.file_system);
+    MHF_CHECK(bootstrap.network);
+    MHF_CHECK(context.Get<mhf::runtime::IFileSystem>() != nullptr);
+    MHF_CHECK(context.Get<mhf::runtime::INetworkSystem>() != nullptr);
+    MHF_CHECK(context.Contains<mhf::runtime::IFileSystem>() == bootstrap.file_system);
+    MHF_CHECK(context.Contains<mhf::runtime::INetworkSystem>() == bootstrap.network);
+    MHF_CHECK(context.Contains<mhf::runtime::ILogger>() == bootstrap.logger);
+    MHF_CHECK(context.Contains<mhf::runtime::IRenderer>() == bootstrap.renderer);
+    MHF_CHECK(context.Contains<mhf::runtime::IInputSystem>() == bootstrap.input);
+    MHF_CHECK(context.Contains<mhf::runtime::IAudioSystem>() == bootstrap.audio);
+    MHF_CHECK((context.Get<mhf::runtime::ILogger>() != nullptr) == bootstrap.logger);
+    MHF_CHECK((context.Get<mhf::runtime::IRenderer>() != nullptr) == bootstrap.renderer);
+    MHF_CHECK((context.Get<mhf::runtime::IInputSystem>() != nullptr) == bootstrap.input);
+    MHF_CHECK((context.Get<mhf::runtime::IAudioSystem>() != nullptr) == bootstrap.audio);
+    mhf::runtime::RuntimeBootstrap::Shutdown();
+
     const std::filesystem::path root = std::filesystem::temp_directory_path() / "mhf_psp_adapter_test";
     std::filesystem::remove_all(root);
 

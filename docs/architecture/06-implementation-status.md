@@ -28,6 +28,17 @@ The following platform-independent contracts are implemented under
 These interfaces contain no PS4 SDK symbols and may be implemented by
 Windows, Linux, or PS4 backends.
 
+### Bootstrap Policy
+
+`RuntimeContext` contains only concrete service implementations.
+
+Services are registered only when a platform provides a working
+implementation. Unsupported services are absent rather than represented by
+placeholders.
+
+Consumers should use `Get<T>()` for optional services and `Require<T>()` for
+mandatory services.
+
 ### Memory Infrastructure
 
 `runtime/memory/` provides:
