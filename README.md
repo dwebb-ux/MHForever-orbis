@@ -13,6 +13,7 @@
 | :--- | :---: | :--- |
 | **Milestone 1: Foundation** | ✅ Complete | Runtime interfaces, allocators, manifest tooling & architecture docs |
 | **Milestone 2: Runtime Extraction** | 🚧 In Progress | PSP adapter migration, SDL isolation & platform boundary work |
+| **PSP GE Graphics Backends** | 🚧 In Progress | OpenGL 3.3 backend active (default); Vulkan backend through Phase 2C complete |
 | **Milestone 3: PS4 Bring-Up** | 📋 Planned | OpenOrbis toolchain integration & backend initialization |
 | **PS4 Renderer / Audio / Net** | ❌ Not Implemented | Future backend work |
 | **FPKG / EBOOT / PARAM.SFO** | ❌ Not Implemented | Packaging & deployment pipeline pending |
@@ -22,13 +23,21 @@
 ### Current Repository State
 
 **Implemented:**
-- Runtime abstraction layer, platform-independent interfaces, runtime context, and service registry
-- Memory allocator framework (arena allocator, frame allocator, memory statistics)
-- Asset validation tooling and deterministic manifest generation
-- SDK-gated PS4 platform boundary, PSP adapter migration framework, and modernized CMake configuration
+- **Runtime & Architecture:** Platform-independent interfaces, runtime context, service registry, memory allocators (arena, frame, stats), asset validation tooling, and deterministic manifest generation.
+- **Backend Selection & Factory:** Unified `gpu::RenderConfig` and factory (`make_backend`) supporting selectable OpenGL (`BackendKind::Gl`) and Vulkan (`BackendKind::Vulkan`) backends.
+- **SDL Surface Handoff:** Window creation decoupled in `SdlHost` to support `SDL_WINDOW_VULKAN` without forcing OpenGL context creation when Vulkan is selected.
+- **CPU Texture Cache Decoupling:** Shared, backend-agnostic CPU texture decoding, CLUT lookup, cache-key hashing, and HD text page reconstruction (`TextPageCache`) independent of GPU upload paths.
+- **Vulkan GE Backend (Phases 0 – 2C Complete):**
+  - **Phase 1 (POC):** Device/instance setup, Vulkan SDL surface creation, swapchain management, frame synchronization (`kMaxFramesInFlight = 2`), and clear-and-present loop.
+  - **Phase 2A & 2B (Core Geometry & Pipelines):** Build-time GLSL -> SPIR-V compilation (`glslc`), persistently mapped per-frame vertex/sprite ring buffers, push constants, dynamic viewport/scissor, GE register snapshotting, and `VkPipeline` state caching.
+  - **Phase 2C (Render Targets & Readbacks):** Offscreen `RenderTarget` pool with `render_scale` support, overlap-safe framebuffer transfers/blits (`block_transfer`), and direct staging readbacks (`copy_to_ram`) back to guest VRAM.
+- **Shader & Test Infrastructure:** Automated SPIR-V compilation target (`mhf_psp_vulkan_shaders`), validation (`spirv-val`), and unit test suite (`test_psp_vulkan_backend`, `test_texture_cache`) verified under headless Xvfb/lavapipe execution.
+
+**In Progress / Pending (Phase 3):**
+- **Phase 3 Vulkan Features:** Full GPU texture-pack and HD-text upload integration, frame interpolation pass, and projected shadow rendering pipeline.
 
 **Not Yet Implemented:**
-- Functional PS4 renderer, audio backend, or networking backend
+- Functional native PS4 renderer, audio backend, or networking backend
 - FPKG, EBOOT, and `PARAM.SFO` generation
 - Suspend / resume lifecycle handling
 - Real PS4 hardware validation
@@ -67,7 +76,7 @@ The core principle is simple: **port the runtime, not the game.** Gameplay syste
        │
        ▼
   Platform Backends
-  ├── PSP
+  ├── PSP (GL 3.3 / Vulkan)
   ├── Windows
   ├── Linux
   └── PS4
@@ -81,6 +90,12 @@ The core principle is simple: **port the runtime, not the game.** Gameplay syste
 │   └── architecture/
 ├── platforms/
 │   ├── psp/
+│   │   ├── frontend/
+│   │   │   ├── shaders/        # GLSL sources for Vulkan SPIR-V target
+│   │   │   ├── gl_backend.cpp  # OpenGL 3.3 Core GE backend
+│   │   │   ├── vulkan_backend.cpp # Vulkan GE backend (Phases 0-2C)
+│   │   │   └── texture_cache.cpp  # Backend-agnostic CPU texture/HD-text cache
+│   │   └── gpu/
 │   └── ps4/
 ├── runtime/
 │   ├── core/
@@ -102,25 +117,29 @@ Platform-specific implementations live inside `platforms/`; runtime systems in `
 - **CMake** `3.28+`
 - **C++20 Compiler:** Clang or GCC
 - **Python 3**
-- **Desktop Dependencies:** SDL3 and FFmpeg
+- **Desktop Dependencies:** SDL3 and FFmpeg (`libavcodec`, `libavutil`)
+- **Vulkan Toolchain (Optional for Vulkan Backend):** `libvulkan-dev`, `glslc` (from `vulkan-tools` / `glslang-tools`), and `spirv-val`
 
 > [!NOTE]
-> The PS4 target currently exists only as a gated platform boundary and infrastructure layer—it is **not** yet a playable PS4 port.
+> The PS4 target currently exists as a gated platform boundary and infrastructure layer—it is **not** yet a playable PS4 port.
 
 ### Configure & Build
 
 ```bash
-git clone [https://github.com/](https://github.com/)<your-username>/MHForever-Orbis.git
+git clone https://github.com/<your-username>/MHForever-Orbis.git
 cd MHForever-Orbis
 
-# Configure with Clang and Ninja
+# Configure with Clang, Ninja, and Vulkan/SDL/FFmpeg flags
 cmake -B build \
   -G Ninja \
   -DCMAKE_C_COMPILER=clang \
   -DCMAKE_CXX_COMPILER=clang++ \
-  -DCMAKE_BUILD_TYPE=RelWithDebInfo
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+  -DMHF_WITH_SDL=ON \
+  -DMHF_FFMPEG=system \
+  -DMHF_BUILD_TESTS=ON
 
-# Build
+# Build all targets including Vulkan SPIR-V shaders and test targets
 cmake --build build -j
 ```
 
@@ -129,6 +148,15 @@ If `Ninja` is unavailable, omit `-G Ninja` to use your system's default CMake ge
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake --build build -j
+```
+
+### Running Tests
+
+Run the PSP GPU backend and texture cache tests (including headless Vulkan validation):
+
+```bash
+# Run tests directly or via CTest
+xvfb-run -a ctest --test-dir build -R 'psp_vulkan_backend|psp_texture_cache' --output-on-failure
 ```
 
 ---
@@ -160,10 +188,12 @@ Migrating PSP renderer, audio, input, filesystem, and networking adapters behind
 
 ```text
 Existing PSP Implementation ──▶ Runtime Interfaces ──▶ Platform Adapters
+                                                       ├── OpenGL 3.3 Backend (Default)
+                                                       └── Vulkan Backend (Phases 0–2C)
 ```
 
 ### 📋 Milestone 3 — PS4 Bring-Up *(Planned)*
-OpenOrbis integration, service initialization, platform bootstrap, filesystem/logging/input backends, and runtime lifecycle handling. Future graphics work will evaluate compatibility across the existing OpenGL renderer, OpenOrbis graphics pathways, and Piglet (OpenGL ES).
+OpenOrbis integration, service initialization, platform bootstrap, filesystem/logging/input backends, and runtime lifecycle handling. Future graphics work will evaluate compatibility across the existing OpenGL renderer, Vulkan backend, OpenOrbis graphics pathways, and Piglet (OpenGL ES).
 
 ---
 
@@ -172,7 +202,7 @@ OpenOrbis integration, service initialization, platform bootstrap, filesystem/lo
 | Category | Technologies |
 | :--- | :--- |
 | **Runtime & Build** | C++20, CMake 3.28+, Clang, GCC |
-| **Desktop & Media** | SDL3, FFmpeg, OpenGL *(existing renderer)* |
+| **Desktop & Media** | SDL3, FFmpeg, OpenGL 3.3 Core, Vulkan 1.0+, GLSL / SPIR-V (`glslc`) |
 | **Recompilation** | PSPRecomp |
 | **PS4 Target** | OpenOrbis, PacBrew OpenOrbis Portlibs, PlayStation 4 Homebrew |
 
