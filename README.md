@@ -3,7 +3,7 @@
 > **PlayStation 4-focused fork of MHForever** — evolving a PSP-centric runtime into a platform-agnostic architecture capable of supporting native PlayStation 4 homebrew targets.
 
 > [!IMPORTANT]
-> **Work in Progress:** No playable PS4 build currently exists. Development currently focuses on runtime extraction, platform abstraction, build modernization, tooling, and infrastructure required for future PS4 support.
+> **Work in Progress:** No playable PS4 build currently exists. Development focuses on runtime extraction, platform abstraction, build-system modernization, tooling, and infrastructure required for future PlayStation 4 support.
 
 ---
 
@@ -11,42 +11,50 @@
 
 | Area | Status | Notes |
 | :--- | :---: | :--- |
-| **Milestone 1: Foundation** | ✅ Complete | Core abstractions, allocators, manifest tooling & boundaries |
-| **Milestone 2: Runtime Extraction** | 🚧 In Progress | Extracting adapters & isolating platform/SDL dependencies |
-| **Milestone 3: PS4 Bring-Up** | 📋 Planned | Orbis toolchain, PS4 backends & startup lifecycle |
-| **PS4 Renderer / Audio / Net** | ❌ Not Yet Implemented | Future backend work |
-| **FPKG / EBOOT / PARAM.SFO** | ❌ Not Yet Implemented | Packaging & deployment pipeline pending |
-| **Suspend / Resume & Hardware** | ❌ Not Yet Implemented | Pending PS4 bring-up and hardware validation |
+| **Milestone 1: Foundation** | ✅ Complete | Runtime interfaces, allocators, manifest tooling & architecture docs |
+| **Milestone 2: Runtime Extraction** | 🚧 In Progress | PSP adapter migration, SDL isolation & platform boundary work |
+| **Milestone 3: PS4 Bring-Up** | 📋 Planned | OpenOrbis toolchain integration & backend initialization |
+| **PS4 Renderer / Audio / Net** | ❌ Not Implemented | Future backend work |
+| **FPKG / EBOOT / PARAM.SFO** | ❌ Not Implemented | Packaging & deployment pipeline pending |
+| **Suspend / Resume** | ❌ Not Implemented | Future lifecycle work |
+| **Hardware Validation** | ❌ Not Started | Pending PS4 bring-up |
 
-### What Is Currently in the Repository
+### Current Repository State
 
-- **Runtime & Core Systems:** Runtime abstraction layer, core service registration framework, and platform-independent interfaces
-- **Memory Management:** Memory allocator framework (arena allocator, frame allocator, memory statistics)
-- **Tooling & Boundaries:** Asset validation/manifest tooling, SDK-gated PS4 platform boundary, and PSP adapter migration infrastructure
-- **Build System:** Modernized CMake configuration
+**Implemented:**
+- Runtime abstraction layer, platform-independent interfaces, runtime context, and service registry
+- Memory allocator framework (arena allocator, frame allocator, memory statistics)
+- Asset validation tooling and deterministic manifest generation
+- SDK-gated PS4 platform boundary, PSP adapter migration framework, and modernized CMake configuration
 
-### What Is Not Yet Included
-
+**Not Yet Implemented:**
 - Functional PS4 renderer, audio backend, or networking backend
-- FPKG, EBOOT, or `PARAM.SFO` generation
-- Suspend/resume implementation
+- FPKG, EBOOT, and `PARAM.SFO` generation
+- Suspend / resume lifecycle handling
 - Real PS4 hardware validation
 
 ---
 
-## Goals
+## Goals & Development Philosophy
 
-- **Native PlayStation 4 Homebrew Support:** Target PS4 homebrew environments cleanly once the runtime layer is decoupled.
-- **Runtime Portability:** Keep the core runtime platform-agnostic across consoles and desktop targets.
-- **Preservation:** Support preservation of PSP-era *Monster Hunter* titles through clean recompilation infrastructure.
-- **Shared Runtime Architecture:** Maintain a unified runtime core across backends.
-- **Desktop Continuity:** Preserve Windows and Linux support alongside future console backends.
+The core principle is simple: **port the runtime, not the game.** Gameplay systems should remain platform-agnostic so new backends can be added without modifying game logic, prioritizing **correct architecture**, **platform isolation**, **runtime portability**, and **long-term maintainability**.
+
+- **Native PlayStation 4 Homebrew Support:** Execute recompiled *Monster Hunter* content cleanly on PS4 homebrew environments once the runtime is decoupled.
+- **Runtime Portability & Shared Architecture:** Keep a single runtime core supporting **PSP**, **Windows**, **Linux**, and **PlayStation 4** side by side.
+- **Preservation:** Support long-term preservation of PSP-era *Monster Hunter* titles via static recompilation and modern runtime infrastructure.
+- **Desktop Continuity:** Preserve compatibility across existing desktop targets while expanding console support.
+
+---
+
+## Why PlayStation 4 Is a Practical Target
+
+- **Static Recompilation:** PSPRecomp statically translates PSP executables into native C/C++ ahead of time—avoiding dynamic recompilers, runtime code generation, executable memory permissions, and JIT restrictions.
+- **Existing Dependency Availability:** Core dependencies such as **SDL** and **FFmpeg** are already available through **PacBrew OpenOrbis Portlibs**, reducing custom port work.
+- **Host-Based Asset Processing:** ISO validation, asset extraction, runtime data generation, and manifest creation stay on desktop hosts, leaving the PS4 runtime to consume prepared data with lower memory overhead, faster startup, and simpler runtime logic.
 
 ---
 
 ## Architecture
-
-Gameplay systems should remain decoupled from platform specifics so new backends can be added without modifying game logic.
 
 ```text
   Game Logic
@@ -65,122 +73,140 @@ Gameplay systems should remain decoupled from platform specifics so new backends
   └── PS4
 ```
 
+### Repository Structure
+
+```text
+├── cmake/
+├── docs/
+│   └── architecture/
+├── platforms/
+│   ├── psp/
+│   └── ps4/
+├── runtime/
+│   ├── core/
+│   ├── interfaces/
+│   ├── memory/
+│   └── tests/
+├── tests/
+└── tools/
+```
+
+Platform-specific implementations live inside `platforms/`; runtime systems in `runtime/` remain platform-independent. Key architecture docs in `docs/architecture/` cover **Engine Principles**, **System Ownership**, **Threading Model**, **Memory Budget**, **PS4 Runtime Design**, **FPKG Build Pipeline**, and **Implementation Status**.
+
 ---
 
 ## Build & Quickstart
 
-### Prerequisites
+### Requirements
 
-- **CMake** `3.28+` (Ninja, Unix Makefiles, or Visual Studio generator)
-- **Clang** toolchain (`clang` / `clang++`) with C++20 support
-- **SDL3** and host runtime dependencies (for desktop/host build targets)
-- **Python 3** (if running or scripting Asset Builder manifest workflows)
+- **CMake** `3.28+`
+- **C++20 Compiler:** Clang or GCC
+- **Python 3**
+- **Desktop Dependencies:** SDL3 and FFmpeg
 
 > [!NOTE]
-> The PS4/Orbis target boundary is currently SDK-gated and not yet a playable PS4 build. Start with a standard host build to verify runtime extraction, tests, and tooling.
+> The PS4 target currently exists only as a gated platform boundary and infrastructure layer—it is **not** yet a playable PS4 port.
 
-### Configure & Build (Clang)
+### Configure & Build
 
 ```bash
 git clone [https://github.com/](https://github.com/)<your-username>/MHForever-Orbis.git
 cd MHForever-Orbis
 
-cmake -B build -G Ninja \
+# Configure with Clang and Ninja
+cmake -B build \
+  -G Ninja \
   -DCMAKE_C_COMPILER=clang \
   -DCMAKE_CXX_COMPILER=clang++ \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
+# Build
 cmake --build build -j
 ```
 
-If you do not use `Ninja`, omit `-G Ninja` to use your system's default CMake generator.
-
-### Running Asset Builder (Manifest Generation)
-
-Point the Asset Builder at a directory containing your own legally obtained game files to generate a deterministic manifest with SHA-256 checksums:
+If `Ninja` is unavailable, omit `-G Ninja` to use your system's default CMake generator:
 
 ```bash
-./build/asset_builder /path/to/your/game/assets --output build/manifest.json
+cmake -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake --build build -j
 ```
 
-*(Adjust the binary name and CLI flags to match your exact build target output.)*
+---
+
+## Asset Builder
+
+Generates deterministic asset manifests for user-supplied game files using SHA-256 hashing, deterministic ordering, stable JSON output, and validation checks while separating repository code from user content.
+
+```bash
+python3 tools/mhf_asset_builder.py \
+  /path/to/assets \
+  --manifest manifest.json
+```
+
+The asset builder intentionally rejects known executable or packaged content formats when used incorrectly.
+
+> [!WARNING]
+> This repository does not distribute copyrighted game content.
 
 ---
 
 ## Milestone Progress
 
-### ✅ Milestone 1 — Foundation *(Complete)*
+### ✅ Milestone 1 — Foundation *(Completed)*
+Architecture documentation, system ownership/threading/memory models, PS4 runtime planning, runtime interfaces/context/service registry, arena & frame allocators, memory statistics, asset manifest tooling, SDK-gated PS4 platform boundary, and PSP adapter framework.
 
-- **Architecture & Models:** Architecture documentation, ownership model, threading model, memory model, and PS4 runtime planning
-- **Runtime & Services:** Runtime interfaces, runtime context, and service registry
-- **Allocators & Diagnostics:** Arena allocator, frame allocator, and memory statistics
-- **Tooling & Adapters:** Asset manifest tool, SDK-gated PS4 platform boundary, and PSP adapter framework
+### 🚧 Milestone 2 — Runtime Extraction *(Current)*
+Migrating PSP renderer, audio, input, filesystem, and networking adapters behind runtime interfaces while isolating SDL dependencies, cleaning up dependencies, and adopting the runtime across existing systems:
 
-### 🚧 Milestone 2 — Runtime Extraction *(In Progress)*
-
-- **PSP Adapters:** Renderer, audio, input, filesystem, and networking adapters
-- **Decoupling & Cleanup:** Runtime adoption across existing code, SDL extraction from shared ownership areas, and dependency isolation
+```text
+Existing PSP Implementation ──▶ Runtime Interfaces ──▶ Platform Adapters
+```
 
 ### 📋 Milestone 3 — PS4 Bring-Up *(Planned)*
-
-- **Toolchain & Lifecycle:** Orbis toolchain integration, startup lifecycle, and service initialization
-- **PS4 Backends:** Filesystem, logging, and input backends
+OpenOrbis integration, service initialization, platform bootstrap, filesystem/logging/input backends, and runtime lifecycle handling. Future graphics work will evaluate compatibility across the existing OpenGL renderer, OpenOrbis graphics pathways, and Piglet (OpenGL ES).
 
 ---
 
-## Tooling
-
-### Asset Builder
-
-Generates deterministic manifests for user-supplied game assets.
-
-- **SHA-256 Generation:** Cryptographic hashes for asset integrity
-- **Deterministic Output:** Stable manifests with deterministic ordering
-- **Validation & Separation:** Manifest validation with clear separation between repository code and user content
-
-> [!NOTE]
-> This repository does not distribute game assets. Users must supply their own legally owned files.
-
----
-
-## Tech Stack
+## Technologies
 
 | Category | Technologies |
 | :--- | :--- |
-| **Core & Desktop** | C++20, CMake 3.28+, Clang, SDL3, OpenGL *(existing implementation)*, PSPRecomp ecosystem |
-| **Target Platform (PS4)** | OpenOrbis Toolchain, PacBrew Portlibs, PlayStation 4 Homebrew, FPKG Deployment Pipeline |
+| **Runtime & Build** | C++20, CMake 3.28+, Clang, GCC |
+| **Desktop & Media** | SDL3, FFmpeg, OpenGL *(existing renderer)* |
+| **Recompilation** | PSPRecomp |
+| **PS4 Target** | OpenOrbis, PacBrew OpenOrbis Portlibs, PlayStation 4 Homebrew |
 
 ---
 
 ## Credits
 
-This fork builds on the foundation laid by the original **MHForever** project and the broader PSP recompilation community.
+This project builds on the original **MHForever** codebase as well as the broader PSP recompilation and PlayStation 4 homebrew communities.
 
-### Core Recompilation & Desktop Libraries
+### Recompilation & Desktop Ecosystem
 
-| Project / Library | Role & Contribution | Link |
+| Project / Library | Role | Link |
 | :--- | :--- | :--- |
-| **MHForever** *(Mango77x)* | Original project demonstrating practical PSP game recompilation workflows | [GitHub](https://github.com/Mango77x/MHForever) |
-| **PSPRecomp** | Recompilation framework enabling PSP game recompilation workflows | [GitHub](https://github.com/PSP-Archive/PSPRecomp) |
-| **PPSSPP** | Technical reference for PSP behavior validation, system research, and compatibility testing | [GitHub](https://github.com/hrydgard/ppsspp) |
-| **SDL** | Existing desktop runtime and host system support | [GitHub](https://github.com/libsdl-org/SDL) |
-| **FFmpeg** | Media processing components used in existing MHForever infrastructure | [ffmpeg.org](https://ffmpeg.org/) |
+| **MHForever** *(Mango77x)* | Original PSP game recompilation project and workflow reference | [GitHub](https://github.com/Mango77x/MHForever) |
+| **PSPRecomp** | Static recompilation framework enabling native execution | [GitHub](https://github.com/PSP-Archive/PSPRecomp) |
+| **PPSSPP** | Technical reference for PSP behavior validation, emulation research, and compatibility | [GitHub](https://github.com/hrydgard/ppsspp) |
+| **SDL** | Desktop runtime support for input, windowing, and audio | [GitHub](https://github.com/libsdl-org/SDL) |
+| **FFmpeg** | Media decoding support used in existing infrastructure | [ffmpeg.org](https://ffmpeg.org/) |
 
-### PS4 Development Ecosystem
+### PlayStation 4 Homebrew Ecosystem
 
-Special thanks to the teams and maintainers building the open-source PS4 homebrew toolchain and port library ecosystem:
+Special thanks to the maintainers and contributors building the modern PS4 homebrew SDK, package repositories, and port libraries:
 
-| Project / Organization | Role & Contribution | Link |
+| Project / Organization | Role | Link |
 | :--- | :--- | :--- |
-| **OpenOrbis** | Open-source PlayStation 4 homebrew SDK and toolchain | [GitHub](https://github.com/OpenOrbis/OpenOrbis-PS4-Toolchain) |
-| **PacBrew** | Maintainers of PS4 OpenOrbis package repositories, toolchains, and precompiled port libraries | [GitHub](https://github.com/PacBrew) |
-| **ps4-openorbis-portlibs** | Provides SDL, FFmpeg, and additional libraries required for PlayStation 4 homebrew development | [GitHub](https://github.com/PacBrew/ps4-openorbis-portlibs) |
+| **OpenOrbis** | Open-source PlayStation 4 development toolchain and SDK | [GitHub](https://github.com/OpenOrbis/OpenOrbis-PS4-Toolchain) |
+| **PacBrew** | Maintainers of OpenOrbis package infrastructure and build ecosystem | [GitHub](https://github.com/PacBrew) |
+| **ps4-openorbis-portlibs** | Prebuilt libraries including SDL, FFmpeg, and PS4-compatible dependencies | [GitHub](https://github.com/PacBrew/ps4-openorbis-portlibs) |
 
 ---
 
 ## Legal
 
 > [!WARNING]
-> **No Copyrighted Assets Included:** This repository contains only source code, tooling, and documentation. Users must provide their own legally owned game assets.
+> **No Copyrighted Assets Included:** This repository contains source code, tooling, and documentation only. Users must provide their own legally owned game data.
 >
-> *Monster Hunter* and related intellectual property belong to **Capcom Co., Ltd.** This project is not affiliated with, endorsed by, or sponsored by Capcom.
+> *Monster Hunter* and related intellectual property belong to **Capcom Co., Ltd.** This project is not affiliated with, endorsed by, sponsored by, or approved by Capcom.
