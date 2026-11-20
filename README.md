@@ -262,6 +262,7 @@ This project builds on the original **MHForever** codebase as well as the broade
 | **PPSSPP** | Technical reference for PSP behavior validation, emulation research, and compatibility | [GitHub](https://github.com/hrydgard/ppsspp) |
 | **SDL** | Desktop runtime support for input, windowing, and audio | [GitHub](https://github.com/libsdl-org/SDL) |
 | **FFmpeg** | Media decoding support used in existing infrastructure | [ffmpeg.org](https://ffmpeg.org/) |
+| **PS4-Kit**| Shared PlayStation 4 homebrew runtime, toolchain, graphics, packaging, diagnostic and deployment framework. |[GitHub](https://github.com/iHaiDeeZ/ps4-kit)
 
 ### PlayStation 4 Homebrew Ecosystem
 
