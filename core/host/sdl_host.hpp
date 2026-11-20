@@ -52,6 +52,7 @@ struct HostOptions {
     bool hidden = false; // no visible window (tests, servers)
     int audio_rate = 44100;
     bool opengl = false; // window for an OpenGL 3.3 core context (the caller draws); no 2D renderer until needed
+    bool vulkan = false; // Vulkan-capable window; no SDL renderer or OpenGL context
 };
 
 class SdlHost {

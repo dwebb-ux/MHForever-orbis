@@ -72,6 +72,10 @@ bool SdlHost::create_renderer(unsigned long long flags) {
 
 bool SdlHost::open(const HostOptions &options) {
     impl_->options = options;
+    if (options.opengl && options.vulkan) {
+        std::fprintf(stderr, "[host] cannot open a window for both OpenGL and Vulkan\n");
+        return false;
+    }
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
         std::fprintf(stderr, "[host] SDL_Init failed: %s\n", SDL_GetError());
         return false;
@@ -80,13 +84,17 @@ bool SdlHost::open(const HostOptions &options) {
     // Debugging: MHF_WINDOW_HIDDEN=1 keeps the window hidden (unattended runs that dump what it shows).
     const bool hidden = options.hidden || std::getenv("MHF_WINDOW_HIDDEN") != nullptr;
     SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE | (hidden ? SDL_WINDOW_HIDDEN : 0);
-    if (options.opengl) {
-        flags |= SDL_WINDOW_OPENGL;
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-        SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-        SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 0);
+    if (options.opengl || options.vulkan) {
+        if (options.opengl) {
+            flags |= SDL_WINDOW_OPENGL;
+            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+            SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
+            SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+            SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+            SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 0);
+        } else {
+            flags |= SDL_WINDOW_VULKAN;
+        }
         // Debugging: MHF_WINDOW_SIZE=<width>x<height> opens the window at that size (a wide window, say, to see the
         // widescreen setting without a wide screen).
         int width = options.width * options.scale, height = options.height * options.scale;
@@ -291,6 +299,23 @@ bool SdlHost::poll() {
 }
 
 void SdlHost::present(const std::uint32_t *pixels, int width, int height, int stride) {
+    if (impl_->renderer == nullptr && impl_->window != nullptr && impl_->options.vulkan) {
+        int window_width = 0, window_height = 0;
+        SDL_GetWindowSize(impl_->window, &window_width, &window_height);
+        const SDL_WindowFlags old_flags = SDL_GetWindowFlags(impl_->window);
+        SDL_WindowFlags flags = SDL_WINDOW_RESIZABLE;
+        if ((old_flags & SDL_WINDOW_HIDDEN) != 0) flags |= SDL_WINDOW_HIDDEN;
+        if ((old_flags & SDL_WINDOW_FULLSCREEN) != 0) flags |= SDL_WINDOW_FULLSCREEN;
+
+        SDL_DestroyWindow(impl_->window);
+        impl_->window = SDL_CreateWindow(impl_->options.title, window_width, window_height, flags);
+        if (impl_->window == nullptr) {
+            std::fprintf(stderr, "[host] cannot replace the Vulkan window with a software window: %s\n", SDL_GetError());
+            return;
+        }
+        impl_->options.vulkan = false;
+        if (!create_renderer(0)) return;
+    }
     if (impl_->renderer == nullptr && (impl_->window == nullptr || !create_renderer(0))) return;
     SDL_Rect area{0, 0, std::min(width, impl_->options.width), std::min(height, impl_->options.height)};
     SDL_UpdateTexture(impl_->texture, &area, pixels, stride * 4);

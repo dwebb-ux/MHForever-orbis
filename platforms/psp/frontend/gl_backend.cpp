@@ -11,6 +11,7 @@
 #include "frame_matching.hpp"
 #include "texture_images.hpp"
 #include "texture_pack.hpp"
+#include "texture_cache.hpp"
 #include "mhf/psp/font_glyphs.hpp"
 
 #include "ge.hpp"
@@ -1246,12 +1247,8 @@ private:
     // letters every frame or so; drawing and uploading the whole page each time cost a third of a frame).
     struct HdTextPage {
         GLuint texture{};
-        int width{}, height{};
-        std::array<std::uint32_t, 16> clut{};
-        std::vector<std::uint32_t> source; // the game's page as last drawn (width x height)
-        std::vector<std::uint32_t> pixels; // the HD page (kScale times each way)
+        textures::TextPageCache cache;
         std::uint64_t last_use{};
-        std::uint64_t sheets_generation{};
     };
     GLuint draw_hd_text(const gpu::Ge &ge, const gpu::Ge::TextureInfo &info);
     // Glyph sheets (font_glyphs.hpp): decoded away from the drawing thread when a glyph of their block is first
@@ -1264,18 +1261,16 @@ private:
         int width{};
         std::uint64_t last_use{};
     };
-    struct SheetGlyph {
-        int width{}, height{};
-        std::vector<std::uint8_t> values;
-    };
+    using SheetGlyph = font_glyphs::Coverage;
+    textures::TextPageScratch text_page_scratch_;
     std::shared_ptr<const SheetGlyph> sheet_glyph(const font_glyphs::Glyph &g);
     void poll_glyph_sheets();
     std::map<std::uint32_t, GlyphSheet> glyph_sheets_;
     std::unordered_map<std::uint32_t, std::shared_ptr<const SheetGlyph>> sheet_glyphs_;
     std::uint64_t sheets_generation_ = 0; // a sheet arrived: the HD pages are drawn again with it
     std::map<std::uint32_t, HdTextPage> hd_pages_; // by the page's guest address
-    std::vector<std::uint8_t> hd_text_cover_;
     std::unique_ptr<textures::Loader> loader_; // decodes its images
+    textures::DecodedTexture decoded_texture_;
     bool pack_on_ = false;                     // drawing it (the player can turn it off in the menu)
     bool pack_mips_ = false;                   // its images get mip levels made here (the player's Mipmaps choice)
     std::size_t pack_bytes_ = 0, pack_budget_ = std::size_t(1024) << 20; // pack images on the GPU, and their limit
@@ -1851,6 +1846,12 @@ void GlBackend::set_texture_params(bool linear, bool clamp_s, bool clamp_t, bool
 
 textures::TextureFacts texture_facts(const gpu::Ge &ge, const gpu::Ge::TextureInfo &info, std::uint16_t max_seen_v);
 
+textures::TextureMetadata texture_metadata(const gpu::Ge &ge, const gpu::Ge::TextureInfo &info) {
+    const std::uint32_t wrap = ge.reg(kTexWrap);
+    return {info.width, info.height, (wrap & 1u) != 0, (wrap & 0x100u) != 0,
+            (ge.reg(kTexFilter) & 0x100u) != 0};
+}
+
 GLuint GlBackend::texture_for(const gpu::Ge &ge, float uv_xform[4]) {
     tex_mips_ = false;
     tex_filter_ = 0;
@@ -1915,10 +1916,10 @@ GLuint GlBackend::texture_for(const gpu::Ge &ge, float uv_xform[4]) {
         }
     }
     // Decoded textures, cached by parameters and checked against their content once per frame.
-    std::uint64_t key = info.address;
-    key = key * 1315423911u ^ (static_cast<std::uint64_t>(info.format) << 40u) ^ (static_cast<std::uint64_t>(info.width) << 20u) ^
-          info.height ^ (static_cast<std::uint64_t>(info.stride) << 48u) ^ (info.swizzled ? 0x8000000000000000ull : 0u);
-    if (indexed) key ^= static_cast<std::uint64_t>(ge.reg(kClutFormat)) * 0x9E3779B97F4A7C15ull;
+    const std::uint64_t key = textures::MakeTextureCacheKey(
+                                  info.address, info.format, info.width, info.height, info.stride, info.swizzled,
+                                  indexed ? ge.reg(kClutFormat) : 0u)
+                                  .value;
     CachedTexture &t = textures_[key];
     t.last_use = frame_;
     const bool stale = t.texture == 0 || t.checked_frame != frame_ || (indexed && t.checked_clut != ge.clut_generation());
@@ -1932,7 +1933,8 @@ GLuint GlBackend::texture_for(const gpu::Ge &ge, float uv_xform[4]) {
         bool hd_outdated = false;
         if (t.shown == kHdTextImage) {
             const auto page = hd_pages_.find(info.address & 0x1FFFFFFFu);
-            hd_outdated = page != hd_pages_.end() && page->second.sheets_generation != sheets_generation_;
+            hd_outdated = page != hd_pages_.end() &&
+                          page->second.cache.sheets_generation != sheets_generation_;
         }
         if (t.texture == 0 || hash != t.hash || rekey || hd_outdated) {
             t.hash = hash;
@@ -1958,9 +1960,9 @@ GLuint GlBackend::texture_for(const gpu::Ge &ge, float uv_xform[4]) {
                 t.pending.clear();
             } else {
                 // The game's own texture: until the pack's image is decoded, or for good.
-                pixels_.resize(static_cast<std::size_t>(info.width) * info.height);
-                ge.decode_texture(pixels_.data());
-                if (!dump_folder_.empty()) dump_texture(ge, info, pixels_.data());
+                const textures::TextureMetadata metadata = texture_metadata(ge, info);
+                textures::DecodeGuestTexture(ge, metadata, decoded_texture_);
+                if (!dump_folder_.empty()) dump_texture(ge, info, decoded_texture_.rgba8.data());
                 if (const GLuint hd = draw_hd_text(ge, info); hd != 0) {
                     // A text page: its HD page's texture, which stays with the page (as a pack image's does).
                     if (t.shown != kHdTextImage) release_texture(t);
@@ -1973,7 +1975,7 @@ GLuint GlBackend::texture_for(const gpu::Ge &ge, float uv_xform[4]) {
                     t.mips = false;
                     gl_.BindTexture(GL_TEXTURE_2D, t.texture);
                     gl_.TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, static_cast<GLsizei>(info.width), static_cast<GLsizei>(info.height),
-                                   0, GL_RGBA, GL_UNSIGNED_BYTE, pixels_.data());
+                                   0, GL_RGBA, GL_UNSIGNED_BYTE, decoded_texture_.rgba8.data());
                     gl_.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
                 }
             }
@@ -2003,11 +2005,13 @@ GLuint GlBackend::texture_for(const gpu::Ge &ge, float uv_xform[4]) {
         if (info.format == 0) {
             t.holes = 0.0f; // 5650: no alpha
         } else {
-            pixels_.resize(static_cast<std::size_t>(info.width) * info.height);
-            ge.decode_texture(pixels_.data());
+            const textures::TextureMetadata metadata = texture_metadata(ge, info);
+            textures::DecodeGuestTexture(ge, metadata, decoded_texture_);
             std::size_t clear = 0;
-            for (const std::uint32_t px : pixels_) clear += (px >> 24u) < 128u ? 1u : 0u;
-            t.holes = pixels_.empty() ? 0.0f : static_cast<float>(clear) / static_cast<float>(pixels_.size());
+            for (const std::uint32_t px : decoded_texture_.rgba8) clear += (px >> 24u) < 128u ? 1u : 0u;
+            t.holes = decoded_texture_.rgba8.empty()
+                          ? 0.0f
+                          : static_cast<float>(clear) / static_cast<float>(decoded_texture_.rgba8.size());
         }
         // Which zone of which map it belongs to, by the game's own texture: no pack is needed for this.
         t.zone = -1;
@@ -2148,132 +2152,28 @@ GLuint GlBackend::draw_hd_text(const gpu::Ge &ge, const gpu::Ge::TextureInfo &in
     font_glyphs::Page page;
     if (!font_glyphs::page(info.address, page)) return 0;
     if (page.width != static_cast<int>(info.width) || page.height != static_cast<int>(info.height)) return 0; // not that page
-    constexpr int s = font_glyphs::kScale;
-    const int w = static_cast<int>(info.width), h = static_cast<int>(info.height), hw = w * s, hh = h * s;
     std::array<std::uint32_t, 16> clut{};
     for (std::uint32_t i = 0; i < 16; ++i) clut[i] = ge.clut_lookup(i);
-    const std::uint32_t background = clut[0];
 
     HdTextPage &hp = hd_pages_[info.address & 0x1FFFFFFFu];
     hp.last_use = frame_;
-    // Where the game's page changed: all of it for a new page or another palette, else the box of the texels that
-    // differ (a letter or a line), one texel wider for the filter.
-    int rx0 = 0, ry0 = 0, rx1 = w, ry1 = h;
-    const bool whole = hp.texture == 0 || hp.width != w || hp.height != h || hp.clut != clut || hp.source.size() != pixels_.size() ||
-                       hp.sheets_generation != sheets_generation_;
-    if (!whole) {
-        rx0 = w;
-        ry0 = h;
-        rx1 = 0;
-        ry1 = 0;
-        for (int y = 0; y < h; ++y) {
-            const std::uint32_t *a = pixels_.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(w);
-            const std::uint32_t *b = hp.source.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(w);
-            for (int x = 0; x < w; ++x) {
-                if (a[x] == b[x]) continue;
-                rx0 = std::min(rx0, x);
-                rx1 = std::max(rx1, x + 1);
-                ry0 = std::min(ry0, y);
-                ry1 = y + 1;
-            }
-        }
-        if (rx1 <= rx0) return hp.texture; // the same page
-        rx0 = std::max(0, rx0 - 1);
-        ry0 = std::max(0, ry0 - 1);
-        rx1 = std::min(w, rx1 + 1);
-        ry1 = std::min(h, ry1 + 1);
-    }
-    if (whole) {
-        if (hp.texture == 0) gl_.GenTextures(1, &hp.texture);
-        hp.width = w;
-        hp.height = h;
-        hp.clut = clut;
-        hp.sheets_generation = sheets_generation_;
-        hp.pixels.assign(static_cast<std::size_t>(hw) * static_cast<std::size_t>(hh), background);
-    }
-    hp.source = pixels_;
-    // The region in the HD page, drawn again: the game's texels scaled up, then every glyph still there over them.
-    const int hx0 = rx0 * s, hy0 = ry0 * s, hx1 = rx1 * s, hy1 = ry1 * s, rw = hx1 - hx0, rh = hy1 - hy0;
-    hd_text_cover_.assign(static_cast<std::size_t>(rw) * static_cast<std::size_t>(rh), 0);
-    for (int y = hy0; y < hy1; ++y) {
-        const std::uint32_t *row = pixels_.data() + static_cast<std::size_t>(y / s) * static_cast<std::size_t>(w);
-        std::uint32_t *out = hp.pixels.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(hw);
-        for (int x = hx0; x < hx1; ++x) out[x] = row[x / s];
-    }
-    std::vector<const font_glyphs::Glyph *> kept;
-    for (const font_glyphs::Glyph &g : page.glyphs) {
-        const int x0 = std::max({0, g.x, g.clip_x0}), y0 = std::max({0, g.y, g.clip_y0});
-        const int x1 = std::min({w, g.x + g.width, g.clip_x1}), y1 = std::min({h, g.y + g.height, g.clip_y1});
-        if (x1 <= rx0 || x0 >= rx1 || y1 <= ry0 || y0 >= ry1) continue; // not in the region
-        bool there = false;
-        for (int y = y0; y < y1 && !there; ++y) {
-            for (int x = x0; x < x1; ++x) {
-                if (pixels_[static_cast<std::size_t>(y) * static_cast<std::size_t>(w) + static_cast<std::size_t>(x)] != background) {
-                    there = true;
-                    break;
-                }
-            }
-        }
-        if (!there) continue;
-        kept.push_back(&g);
-        // Its box goes back to the background (inside the region) before it is drawn again.
-        const int bx0 = std::max(x0, rx0) * s, bx1 = std::min(x1, rx1) * s;
-        for (int y = std::max(y0, ry0) * s; y < std::min(y1, ry1) * s; ++y) {
-            std::fill_n(hp.pixels.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(hw) + static_cast<std::size_t>(bx0),
-                        static_cast<std::size_t>(bx1 - bx0), background);
-        }
-    }
-    for (const font_glyphs::Glyph *g : kept) {
-        const int cx0 = std::max(std::max(0, g->clip_x0) * s, hx0), cy0 = std::max(std::max(0, g->clip_y0) * s, hy0);
-        const int cx1 = std::min(std::min(w, g->clip_x1) * s, hx1), cy1 = std::min(std::min(h, g->clip_y1) * s, hy1);
-        const auto put = [&](int x, int y, std::uint8_t v) {
-            if (v == 0 || x < cx0 || y < cy0 || x >= cx1 || y >= cy1) return;
-            std::uint8_t &c = hd_text_cover_[static_cast<std::size_t>(y - hy0) * static_cast<std::size_t>(rw) + static_cast<std::size_t>(x - hx0)];
-            c = std::max(c, v);
-        };
-        if (const auto glyph = sheet_glyph(*g)) {
-            // The artist's glyph, cut to its box, placed by the pen.
-            const int dx0 = static_cast<int>(std::lround(static_cast<double>(g->pen_x64) * s / 64.0)) + g->box_x * s;
-            const int dy0 = static_cast<int>(std::lround(static_cast<double>(g->pen_y64) * s / 64.0)) + g->box_y * s;
-            for (int y = std::max(0, cy0 - dy0); y < std::min(glyph->height, cy1 - dy0); ++y) {
-                for (int x = std::max(0, cx0 - dx0); x < std::min(glyph->width, cx1 - dx0); ++x) {
-                    put(dx0 + x, dy0 + y, glyph->values[static_cast<std::size_t>(y) * static_cast<std::size_t>(glyph->width) + static_cast<std::size_t>(x)]);
-                }
-            }
-        } else if (g->hd) {
-            for (int y = std::max(0, cy0 - g->hd_y); y < std::min(g->hd->height, cy1 - g->hd_y); ++y) {
-                for (int x = std::max(0, cx0 - g->hd_x); x < std::min(g->hd->width, cx1 - g->hd_x); ++x) {
-                    put(g->hd_x + x, g->hd_y + y, g->hd->values[static_cast<std::size_t>(y) * static_cast<std::size_t>(g->hd->width) + static_cast<std::size_t>(x)]);
-                }
-            }
-        }
-    }
-    // Coverage to colour through the palette, as the game's 16 levels are, in between them too.
-    for (int y = 0; y < rh; ++y) {
-        const std::uint8_t *cov = hd_text_cover_.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(rw);
-        std::uint32_t *out = hp.pixels.data() + static_cast<std::size_t>(y + hy0) * static_cast<std::size_t>(hw) + static_cast<std::size_t>(hx0);
-        for (int x = 0; x < rw; ++x) {
-            const std::uint8_t c = cov[x];
-            if (c == 0) continue;
-            const float f = static_cast<float>(c) * 15.0f / 255.0f;
-            const int i0 = std::min(14, static_cast<int>(f));
-            const float tf = f - static_cast<float>(i0);
-            std::uint32_t colour = 0;
-            for (int shift = 0; shift < 32; shift += 8) {
-                const float a = static_cast<float>((clut[static_cast<std::size_t>(i0)] >> shift) & 0xFFu);
-                const float b = static_cast<float>((clut[static_cast<std::size_t>(i0) + 1u] >> shift) & 0xFFu);
-                colour |= static_cast<std::uint32_t>(std::lround(a + (b - a) * tf)) << shift;
-            }
-            out[x] = colour;
-        }
-    }
+    const textures::DirtyRect dirty = textures::RebuildTextPage(
+        hp.cache, page, decoded_texture_.rgba8, clut, sheets_generation_,
+        [this](const font_glyphs::Glyph &glyph) { return sheet_glyph(glyph); }, text_page_scratch_);
+    if (dirty.width == 0 || dirty.height == 0) return hp.texture;
+    constexpr int scale = font_glyphs::kScale;
+    const int hd_width = hp.cache.width * scale;
+    const int hd_height = hp.cache.height * scale;
+    if (hp.texture == 0) gl_.GenTextures(1, &hp.texture);
     gl_.BindTexture(GL_TEXTURE_2D, hp.texture);
-    if (whole) {
-        gl_.TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, hw, hh, 0, GL_RGBA, GL_UNSIGNED_BYTE, hp.pixels.data());
+    if (dirty.full) {
+        gl_.TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, hd_width, hd_height, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                       hp.cache.rgba8.data());
     } else {
-        gl_.PixelStorei(GL_UNPACK_ROW_LENGTH, hw);
-        gl_.TexSubImage2D(GL_TEXTURE_2D, 0, hx0, hy0, rw, rh, GL_RGBA, GL_UNSIGNED_BYTE,
-                          hp.pixels.data() + static_cast<std::size_t>(hy0) * static_cast<std::size_t>(hw) + static_cast<std::size_t>(hx0));
+        gl_.PixelStorei(GL_UNPACK_ROW_LENGTH, hd_width);
+        gl_.TexSubImage2D(GL_TEXTURE_2D, 0, dirty.x, dirty.y, dirty.width, dirty.height, GL_RGBA, GL_UNSIGNED_BYTE,
+                          hp.cache.rgba8.data() + static_cast<std::size_t>(dirty.y) * static_cast<std::size_t>(hd_width) +
+                              static_cast<std::size_t>(dirty.x));
         gl_.PixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     }
     gl_.GenerateMipmap(GL_TEXTURE_2D);

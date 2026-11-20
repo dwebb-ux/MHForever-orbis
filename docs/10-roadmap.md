@@ -79,6 +79,16 @@ Goals
 - Save loading
 - Input translation
 
+Milestones
+
+- **Milestone 3 — Evaluate PS4-Kit integration points:** assess `ILogger`,
+  `IFileSystem`, packaging, diagnostics, renderer backend, and runtime bootstrap.
+  Decide whether PS4-Kit is the PS4 platform backend, a dependency of that
+  backend, or a tooling-only dependency. Record evidence and compatibility
+  gates in [09-ps4-kit-evaluation.md](architecture/09-ps4-kit-evaluation.md).
+  This evaluation must not block runtime work or make unverified kit
+  components required.
+
 Success Criteria
 
 - Character loads

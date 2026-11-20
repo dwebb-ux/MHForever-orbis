@@ -18,7 +18,7 @@ public:
     ServiceRegistry(ServiceRegistry &&) noexcept;
     ServiceRegistry &operator=(ServiceRegistry &&) noexcept;
 
-    // Raw pointers are non-owning; the caller must keep them alive.
+    // Raw-pointer registrations are non-owning; keep the object alive until it is unregistered and all handles are released.
     template <typename T>
     bool Register(T *service) {
         if (service == nullptr) {
@@ -44,31 +44,23 @@ public:
     }
 
     template <typename T>
-    T *Get() noexcept {
-        std::shared_ptr<void> service;
-        {
-            std::shared_lock lock(mutex_);
-            const auto found = services_.find(std::type_index(typeid(T)));
-            if (found == services_.end()) {
-                return nullptr;
-            }
-            service = found->second;
+    std::shared_ptr<T> Get() noexcept {
+        std::shared_lock lock(mutex_);
+        const auto found = services_.find(std::type_index(typeid(T)));
+        if (found == services_.end()) {
+            return {};
         }
-        return static_cast<T *>(service.get());
+        return std::static_pointer_cast<T>(found->second);
     }
 
     template <typename T>
-    const T *Get() const noexcept {
-        std::shared_ptr<void> service;
-        {
-            std::shared_lock lock(mutex_);
-            const auto found = services_.find(std::type_index(typeid(T)));
-            if (found == services_.end()) {
-                return nullptr;
-            }
-            service = found->second;
+    std::shared_ptr<const T> Get() const noexcept {
+        std::shared_lock lock(mutex_);
+        const auto found = services_.find(std::type_index(typeid(T)));
+        if (found == services_.end()) {
+            return {};
         }
-        return static_cast<const T *>(service.get());
+        return std::static_pointer_cast<const T>(found->second);
     }
 
     template <typename T>
@@ -79,14 +71,14 @@ public:
 
     template <typename T>
     bool Unregister() {
-        std::unique_lock lock(mutex_);
-        return services_.erase(std::type_index(typeid(T))) != 0;
+        return Unregister(std::type_index(typeid(T)));
     }
 
     void Clear() noexcept;
 
 private:
     bool Register(std::type_index type, std::shared_ptr<void> service);
+    bool Unregister(std::type_index type);
 
     mutable std::shared_mutex mutex_;
     std::unordered_map<std::type_index, std::shared_ptr<void>> services_;

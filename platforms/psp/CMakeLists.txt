@@ -30,11 +30,14 @@ add_subdirectory(runtime)
 
 # Console-independent interfaces backed by existing PSP filesystem/network code and the desktop SDL host.
 add_library(mhf_psp_adapters STATIC
-    ${PROJECT_SOURCE_DIR}/runtime/core/RuntimeBootstrap.cpp
     adapters/PspFileSystem.cpp
     adapters/PspFileSystem.h
+    adapters/PspLogger.cpp
+    adapters/PspLogger.h
     adapters/PspNetworkSystem.cpp
     adapters/PspNetworkSystem.h
+    adapters/PspRuntimeBootstrap.cpp
+    adapters/PspRuntimeBootstrap.h
 )
 target_compile_definitions(mhf_psp_adapters PRIVATE MHF_RUNTIME_PLATFORM_PSP=1)
 target_include_directories(mhf_psp_adapters PUBLIC
@@ -71,12 +74,51 @@ target_link_libraries(mhf_texture_images PRIVATE mhf_basisu mhf_stb_image)
 mhf_target_warnings(mhf_texture_images)
 
 if(MHF_WITH_SDL)
-    add_library(mhf_psp_frontend STATIC frontend/psp_frontend.cpp frontend/gl_backend.cpp frontend/dialog_overlay.cpp)
-    target_include_directories(mhf_psp_frontend PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/frontend
-                               PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/gpu)
+    find_package(Vulkan REQUIRED)
+    find_program(MHF_PSP_GLSLC glslc REQUIRED)
+    set(MHF_PSP_SHADER_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/shaders")
+    set(MHF_PSP_SHADER_SOURCES
+        frontend/shaders/draw.vert
+        frontend/shaders/sprite.vert
+        frontend/shaders/draw.frag
+        frontend/shaders/present.vert
+        frontend/shaders/present.frag
+    )
+    set(MHF_PSP_SHADER_BINARIES)
+    foreach(shader IN LISTS MHF_PSP_SHADER_SOURCES)
+        get_filename_component(shader_name "${shader}" NAME)
+        set(shader_binary "${MHF_PSP_SHADER_OUTPUT_DIR}/${shader_name}.spv")
+        add_custom_command(
+            OUTPUT "${shader_binary}"
+            COMMAND "${CMAKE_COMMAND}" -E make_directory "${MHF_PSP_SHADER_OUTPUT_DIR}"
+            COMMAND "${MHF_PSP_GLSLC}" --target-env=vulkan1.0
+                    "${CMAKE_CURRENT_SOURCE_DIR}/${shader}" -o "${shader_binary}"
+            DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${shader}"
+            VERBATIM
+        )
+        list(APPEND MHF_PSP_SHADER_BINARIES "${shader_binary}")
+    endforeach()
+    add_custom_target(mhf_psp_vulkan_shaders DEPENDS ${MHF_PSP_SHADER_BINARIES})
+
+    add_library(mhf_psp_frontend STATIC
+        frontend/backend_factory.cpp
+        frontend/dialog_overlay.cpp
+        frontend/gl_backend.cpp
+        frontend/psp_frontend.cpp
+        frontend/texture_cache.cpp
+        frontend/vulkan_backend.cpp
+    )
+    target_include_directories(mhf_psp_frontend PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/frontend
+        ${CMAKE_CURRENT_SOURCE_DIR}/gpu
+    )
     # mhf_overlay is public: psp_frontend.hpp takes the horn's song panel (overlay/song_panel.hpp).
     target_link_libraries(mhf_psp_frontend PUBLIC mhf_psp_runtime mhf_overlay PRIVATE mhf_core_host mhf_stb_truetype mhf_psp_interpolation
-                                                                    mhf_texture_pack mhf_texture_images)
+                                                                    mhf_texture_pack mhf_texture_images Vulkan::Vulkan)
+    add_dependencies(mhf_psp_frontend mhf_psp_vulkan_shaders)
+    target_compile_definitions(mhf_psp_frontend PRIVATE
+        MHF_PSP_VULKAN_SHADER_DIR="${MHF_PSP_SHADER_OUTPUT_DIR}"
+    )
     target_compile_definitions(mhf_psp_frontend PUBLIC MHF_HAS_FRONTEND=1)
     mhf_target_warnings(mhf_psp_frontend)
 endif()
@@ -91,8 +133,29 @@ if(MHF_BUILD_TESTS)
         ${CMAKE_CURRENT_SOURCE_DIR}/adapters
     )
     target_link_libraries(test_psp_runtime_adapters PRIVATE mhf_psp_adapters)
+    if(MHF_WITH_SDL)
+        target_compile_definitions(test_psp_runtime_adapters PRIVATE MHF_RUNTIME_PSP_HAS_SDL=1)
+    endif()
     mhf_target_warnings(test_psp_runtime_adapters)
     add_test(NAME psp_runtime_adapters COMMAND test_psp_runtime_adapters)
+
+    if(MHF_WITH_SDL)
+        add_executable(test_psp_runtime_bootstrap tests/test_psp_runtime_bootstrap.cpp)
+        target_include_directories(test_psp_runtime_bootstrap PRIVATE
+            ${PROJECT_SOURCE_DIR}/tests/support
+            ${CMAKE_CURRENT_SOURCE_DIR}/adapters
+        )
+        target_link_libraries(test_psp_runtime_bootstrap PRIVATE mhf_psp_adapters)
+        mhf_target_warnings(test_psp_runtime_bootstrap)
+        add_test(NAME psp_runtime_bootstrap COMMAND test_psp_runtime_bootstrap)
+
+        add_executable(test_psp_vulkan_backend tests/test_psp_vulkan_backend.cpp)
+        target_include_directories(test_psp_vulkan_backend PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/frontend)
+        target_link_libraries(test_psp_vulkan_backend PRIVATE mhf_psp_frontend mhf_core_host)
+        mhf_target_warnings(test_psp_vulkan_backend)
+        add_test(NAME psp_vulkan_backend COMMAND test_psp_vulkan_backend)
+        set_tests_properties(psp_vulkan_backend PROPERTIES SKIP_RETURN_CODE 77)
+    endif()
 
     add_executable(test_iso9660 tests/test_iso9660.cpp)
     target_include_directories(test_iso9660 PRIVATE ${PROJECT_SOURCE_DIR}/tests/support)
@@ -111,6 +174,16 @@ if(MHF_BUILD_TESTS)
     target_link_libraries(test_frame_matching PRIVATE mhf_psp_interpolation)
     mhf_target_warnings(test_frame_matching)
     add_test(NAME psp_frame_matching COMMAND test_frame_matching)
+
+    add_executable(test_texture_cache tests/test_texture_cache.cpp frontend/texture_cache.cpp)
+    target_include_directories(test_texture_cache PRIVATE
+        ${PROJECT_SOURCE_DIR}/tests/support
+        ${CMAKE_CURRENT_SOURCE_DIR}/frontend
+        ${CMAKE_CURRENT_SOURCE_DIR}/gpu
+    )
+    target_link_libraries(test_texture_cache PRIVATE mhf_psp_runtime)
+    mhf_target_warnings(test_texture_cache)
+    add_test(NAME psp_texture_cache COMMAND test_texture_cache)
 
     add_executable(test_texture_pack tests/test_texture_pack.cpp)
     target_include_directories(test_texture_pack PRIVATE ${PROJECT_SOURCE_DIR}/tests/support)

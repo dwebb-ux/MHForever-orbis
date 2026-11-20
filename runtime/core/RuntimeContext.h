@@ -34,12 +34,12 @@ public:
     }
 
     template <typename T>
-    T *Get() noexcept {
+    std::shared_ptr<T> Get() noexcept {
         return registry_.Get<T>();
     }
 
     template <typename T>
-    const T *Get() const noexcept {
+    std::shared_ptr<const T> Get() const noexcept {
         return registry_.Get<T>();
     }
 
@@ -49,17 +49,17 @@ public:
     }
 
     template <typename T>
-    T &Require() {
-        if (T *service = Get<T>(); service != nullptr) {
-            return *service;
+    std::shared_ptr<T> Require() {
+        if (std::shared_ptr<T> service = Get<T>(); service) {
+            return service;
         }
         throw std::logic_error("Required runtime service is not registered");
     }
 
     template <typename T>
-    const T &Require() const {
-        if (const T *service = Get<T>(); service != nullptr) {
-            return *service;
+    std::shared_ptr<const T> Require() const {
+        if (std::shared_ptr<const T> service = Get<T>(); service) {
+            return service;
         }
         throw std::logic_error("Required runtime service is not registered");
     }

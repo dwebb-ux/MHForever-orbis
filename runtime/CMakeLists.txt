@@ -1,4 +1,5 @@
 add_library(mhf_runtime
+    core/RuntimeBootstrap.cpp
     core/RuntimeBootstrap.h
     core/RuntimeContext.cpp
     core/RuntimeContext.h
@@ -26,6 +27,8 @@ set_target_properties(mhf_runtime PROPERTIES
 mhf_target_warnings(mhf_runtime)
 
 if(MHF_BUILD_TESTS)
+    find_package(Threads REQUIRED)
+
     add_executable(mhf_runtime_memory_tests
         tests/MemoryAllocatorTests.cpp
     )
@@ -47,7 +50,7 @@ if(MHF_BUILD_TESTS)
             ${CMAKE_CURRENT_SOURCE_DIR}
     )
     target_compile_features(mhf_runtime_core_tests PRIVATE cxx_std_20)
-    target_link_libraries(mhf_runtime_core_tests PRIVATE mhf_runtime)
+    target_link_libraries(mhf_runtime_core_tests PRIVATE mhf_runtime Threads::Threads)
     mhf_target_warnings(mhf_runtime_core_tests)
     add_test(NAME runtime_context COMMAND mhf_runtime_core_tests)
 endif()

@@ -4,6 +4,7 @@
 // mixed audio. Used by the game executables and the homebrew runner when a window is wanted.
 
 #include "mhf/psp/runtime.hpp"
+#include "backend.hpp"
 #include "overlay/song_panel.hpp"
 
 // host/keymap.hpp and host/padmap.hpp are not included here on purpose: the PSP runtime and the homebrew runners include this
@@ -29,14 +30,16 @@ public:
     // fallback when OpenGL 3.3 is missing). `fullscreen` starts in borderless fullscreen; `smooth_textures` is the
     // bilinear texture enhancement and `target_fps` the output rate: multiples of the game's 30 fps up to 180, made with in-between pictures.
     bool open(const char *title, bool hidden = false, int scale = 2, bool gpu = true, int render_scale = 4,
-              bool fullscreen = false, bool smooth_textures = false, int target_fps = 30);
+              bool fullscreen = false, bool smooth_textures = false, int target_fps = 30,
+              gpu::BackendKind backend = gpu::BackendKind::Gl);
 
     // The same, with the keyboard and controller bindings the game was given (host::KeyBindings, host::PadBindings). A
     // template, so this header never has to know those types; the frontend instantiates it for the game.
     template <typename KeyBindings, typename PadBindings>
     bool open(const char *title, bool hidden, int scale, bool gpu, int render_scale, bool fullscreen,
-              bool smooth_textures, int target_fps, const KeyBindings &keys, const PadBindings &pad) {
-        const bool shown = open(title, hidden, scale, gpu, render_scale, fullscreen, smooth_textures, target_fps);
+              bool smooth_textures, int target_fps, const KeyBindings &keys, const PadBindings &pad,
+              gpu::BackendKind backend = gpu::BackendKind::Gl) {
+        const bool shown = open(title, hidden, scale, gpu, render_scale, fullscreen, smooth_textures, target_fps, backend);
         set_bindings(keys, pad);
         return shown;
     }

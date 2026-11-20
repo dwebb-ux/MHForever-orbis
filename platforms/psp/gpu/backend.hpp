@@ -17,6 +17,11 @@ namespace mhf::psp::gpu {
 class Ge;
 struct Vertex;
 
+enum class BackendKind : std::uint8_t {
+    Gl,
+    Vulkan,
+};
+
 // What a drawing command is, for frame interpolation: what it reads (its identity from one frame to the next) and the
 // matrices it is drawn with (column-major, as the GE holds them: world and view 4x3, the projection 4x4).
 struct DrawInfo {
