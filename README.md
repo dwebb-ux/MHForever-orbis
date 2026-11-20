@@ -306,3 +306,21 @@ Special thanks to the maintainers and contributors building the modern PS4 homeb
 | PSP Adapter Migration | 🚧 In Progress |
 | PS4 Bring-Up | 📋 Planned |
 | PS4 Renderer / Audio / Networking | ❌ Not Implemented |
+
+### PS4 Runtime Direction
+
+The project is evaluating PS4-Kit as the primary PlayStation 4 platform backend. 
+https://github.com/iHaiDeeZ/ps4-kit
+
+PS4-Kit provides:
+
+- OpenOrbis integration
+- Runtime facilities
+- File layer
+- Diagnostics
+- Packaging scripts
+- Vulkan rendering support
+
+Future PS4 work may build on these components
+rather than implementing equivalent systems
+from scratch.
